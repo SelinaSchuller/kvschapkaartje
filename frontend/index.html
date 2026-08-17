@@ -242,7 +242,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="config.js"></script>
     <script>
         document.getElementById('searchBtn').onclick = search;
@@ -319,63 +319,85 @@
         document.getElementById('scanBtn').onclick = startScanning;
         document.getElementById('stopBtn').onclick = stopScanning;
 
-        const FORMAT_RE = /^\d{4}\.\d{2}\.\d\.\d{3}\.\d{2}$/;
+        const video = document.createElement("video");
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
 
-        function normalizeScannedCode(raw) {
-            const cleaned = raw.replace(/\D/g, "");
-            if (cleaned.length !== 12) return null;
+        async function startScanning() {
+            if (scanning) return;
 
-            return [
-                cleaned.slice(0, 4),
-                cleaned.slice(4, 6),
-                cleaned.slice(6, 7),
-                cleaned.slice(7, 10),
-                cleaned.slice(10, 12)
-            ].join(".");
+            scanning = true;
+            document.getElementById('scanBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = '';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                await video.play();
+
+                setTimeout(async () => {
+                    try {
+                        canvas.width = video.videoWidth || 640;
+                        canvas.height = video.videoHeight || 480;
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        const result = await Tesseract.recognize(canvas, "eng", {
+                            logger: m => console.log(m),
+                            tessedit_char_whitelist: "0123456789."
+                        });
+
+                        const text = result.data.text.trim();
+                        console.log("OCR:", text);
+
+                        const cleaned = text.replace(/\s+/g, "");
+                        const normalized = normalizeScannedCode(cleaned);
+
+                        if (normalized) {
+                            processCode(normalized);
+                        } else {
+                            alert("Geen geldige code herkend. Probeer opnieuw.");
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert("OCR kon de code niet lezen. Probeer opnieuw.");
+                    } finally {
+                        stream.getTracks().forEach(track => track.stop());
+                        scanning = false;
+                        document.getElementById('scanBtn').style.display = '';
+                        document.getElementById('stopBtn').style.display = 'none';
+                    }
+                }, 1500);
+            } catch (err) {
+                scanning = false;
+                document.getElementById('scanBtn').style.display = '';
+                document.getElementById('stopBtn').style.display = 'none';
+                alert('Camera kon niet starten: ' + err);
+            }
         }
 
-        function startScanning() {
-            if (scanning) return;
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" },
-                {
-                    fps: 10,
-                    qrbox: { width: 280, height: 140 },
-                    formatsToSupport: [
-                        Html5QrcodeSupportedFormats.CODE_128
-                    ],
-                },
-                (decodedText) => {
-                    const normalized = normalizeScannedCode(decodedText);
+        function normalizeScannedCode(raw) {
+            const digits = raw.replace(/\D/g, "");
+            if (digits.length !== 12) return null;
 
-                    if (!normalized || !FORMAT_RE.test(normalized)) {
-                        alert("Onjuist formaat gescand");
-                        return;
-                    }
+            const formatted =
+                digits.slice(0, 4) + "." +
+                digits.slice(4, 6) + "." +
+                digits.slice(6, 7) + "." +
+                digits.slice(7, 10) + "." +
+                digits.slice(10, 12);
 
-                    processCode(normalized);
-                    stopScanning();
-                },
-                () => { } // scan-fouten per frame negeren
-            ).then(() => {
-                scanning = true;
-                document.getElementById('scanBtn').style.display = 'none';
-                document.getElementById('stopBtn').style.display = '';
-            }).catch(err => {
-                alert('Camera kon niet starten: ' + err);
-            });
+            return formatted;
         }
 
         function stopScanning() {
-            if (html5QrCode && scanning) {
-                html5QrCode.stop().then(() => {
-                    html5QrCode.clear();
-                    scanning = false;
-                    document.getElementById('scanBtn').style.display = '';
-                    document.getElementById('stopBtn').style.display = 'none';
-                }).catch(() => { });
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
             }
+
+            scanning = false;
+            document.getElementById('scanBtn').style.display = '';
+            document.getElementById('stopBtn').style.display = 'none';
         }
     </script>
 </body>
