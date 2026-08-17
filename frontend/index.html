@@ -143,6 +143,52 @@
             font-size: 12px;
             color: var(--gray);
         }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+            font-size: 13px;
+            padding: 10px 8px;
+            border-radius: 6px;
+            border: 2px solid var(--black);
+            background: var(--white);
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background: var(--red);
+            color: var(--white);
+            border-color: var(--red);
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 10px;
+        }
+
+        #scanBtn,
+        #stopBtn {
+            width: 100%;
+            padding: 12px;
+            font-size: 17px;
+        }
+
+        #scanBtn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
     </style>
 </head>
 
@@ -155,17 +201,38 @@
         </div>
 
         <div class="card">
-            <label for="code">Code</label>
-            <div class="row">
-                <input id="code" inputmode="numeric" placeholder="1111.02.3.004.01" maxlength="17">
-                <button id="zoekBtn">Zoek</button>
+
+            <div id="scanPane">
+                <div id="reader"></div>
+                <button id="scanBtn" type="button">
+                    Scan met camera
+                    <svg width="35" height="35" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        style="margin-left: 6px;">
+                        <path
+                            d="M4 8C4 6.89543 4.89543 6 6 6H8.17157C8.70201 6 9.21071 5.78929 9.58579 5.41421L10.5858 4.41421C10.9609 4.03914 11.4696 3.82843 12 3.82843C12.5304 3.82843 13.0391 4.03914 13.4142 4.41421L14.4142 5.41421C14.7893 5.78929 15.298 6 15.8284 6H18C19.1046 6 20 6.89543 20 8V17C20 18.1046 19.1046 19 18 19H6C4.89543 19 4 18.1046 4 17V8Z"
+                            stroke="white" stroke-width="2" stroke-linejoin="round" />
+                        <circle cx="12" cy="12.5" r="3.5" stroke="white" stroke-width="1.8" />
+                    </svg>
+                </button>
+                <button id="stopBtn" type="button" style="display:none;">Stop camera</button>
             </div>
+
+            <p style="text-align: center; margin: 16px 0; font-weight: bold;">of</p>
+
+
+            <div id="manualPane">
+                <label for="code">Vul in handmatig</label>
+                <div class="row">
+                    <input id="code" inputmode="numeric" placeholder="1111.02.3.004.01" maxlength="17">
+                    <button id="searchBtn" type="button">Zoek</button>
+                </div>
+            </div>
+
             <div class="error" id="error"></div>
 
             <div class="result" id="result">
                 <div class="line"><span class="label">Meter</span><span class="value" id="outMeter">–</span></div>
-                <div class="line"><span class="label">Plank</span><span class="value" id="outPlank">–</span>
-                </div>
+                <div class="line"><span class="label">Plank</span><span class="value" id="outPlank">–</span></div>
                 <div class="line"><span class="label">Positie</span><span class="value" id="outPositie">–</span></div>
                 <div class="line"><span class="label">Naast elkaar</span><span class="value" id="outBreedte">–</span>
                 </div>
@@ -175,10 +242,14 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="config.js"></script>
     <script>
-        document.getElementById('zoekBtn').onclick = zoek;
+        document.getElementById('searchBtn').onclick = search;
         document.getElementById('code').addEventListener('input', formatCode);
+        document.getElementById('code').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') search();
+        });
 
         function formatCode(e) {
             const input = e.target;
@@ -205,8 +276,7 @@
             input.value = formatted;
         }
 
-        async function zoek() {
-            const code = document.getElementById('code').value.trim();
+        async function processCode(code) {
             const errorEl = document.getElementById('error');
             const resultEl = document.getElementById('result');
             errorEl.style.display = 'none';
@@ -220,15 +290,18 @@
 
             try {
                 const res = await fetch(`${API_BASE}/calculate/${encodeURIComponent(code)}`);
-                if (!res.ok) {
-                    throw new Error('format');
-                }
+                if (!res.ok) throw new Error('format');
                 const data = await res.json();
                 showResult(data);
             } catch (err) {
-                errorEl.textContent = 'DEBUG: ' + err.message;
+                errorEl.textContent = 'Formaat klopt niet. Verwacht bv: 1111.02.3.004.01';
                 errorEl.style.display = 'block';
             }
+        }
+
+        function search() {
+            const code = document.getElementById('code').value.trim();
+            processCode(code);
         }
 
         function showResult(data) {
@@ -238,6 +311,55 @@
             document.getElementById('outBreedte').textContent = data.breedte;
 
             document.getElementById('result').style.display = 'block';
+        }
+
+        let html5QrCode = null;
+        let scanning = false;
+
+        document.getElementById('tabScan').onclick = () => switchTab('scan');
+        document.getElementById('tabManual').onclick = () => switchTab('manual');
+
+        function switchTab(which) {
+            const isScan = which === 'scan';
+            document.getElementById('tabScan').classList.toggle('active', isScan);
+            document.getElementById('tabManual').classList.toggle('active', !isScan);
+            document.getElementById('scanPane').style.display = isScan ? '' : 'none';
+            document.getElementById('manualPane').style.display = isScan ? 'none' : '';
+            if (!isScan) stopScanning();
+        }
+
+        document.getElementById('scanBtn').onclick = startScanning;
+        document.getElementById('stopBtn').onclick = stopScanning;
+
+        function startScanning() {
+            if (scanning) return;
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 120 } },
+                (decodedText) => {
+                    processCode(decodedText);
+                    stopScanning();
+                },
+                () => { } // scan-fouten per frame negeren
+            ).then(() => {
+                scanning = true;
+                document.getElementById('scanBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = '';
+            }).catch(err => {
+                alert('Camera kon niet starten: ' + err);
+            });
+        }
+
+        function stopScanning() {
+            if (html5QrCode && scanning) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    scanning = false;
+                    document.getElementById('scanBtn').style.display = '';
+                    document.getElementById('stopBtn').style.display = 'none';
+                }).catch(() => { });
+            }
         }
     </script>
 </body>
