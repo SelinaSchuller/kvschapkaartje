@@ -316,18 +316,6 @@
         let html5QrCode = null;
         let scanning = false;
 
-        document.getElementById('tabScan').onclick = () => switchTab('scan');
-        document.getElementById('tabManual').onclick = () => switchTab('manual');
-
-        function switchTab(which) {
-            const isScan = which === 'scan';
-            document.getElementById('tabScan').classList.toggle('active', isScan);
-            document.getElementById('tabManual').classList.toggle('active', !isScan);
-            document.getElementById('scanPane').style.display = isScan ? '' : 'none';
-            document.getElementById('manualPane').style.display = isScan ? 'none' : '';
-            if (!isScan) stopScanning();
-        }
-
         document.getElementById('scanBtn').onclick = startScanning;
         document.getElementById('stopBtn').onclick = stopScanning;
 
