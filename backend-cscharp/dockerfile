@@ -1,0 +1,20 @@
+# ---- Stage 1: bouwen ----
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Kopieer eerst alleen het .csproj-bestand voor efficiëntere caching
+COPY *.csproj ./
+RUN dotnet restore
+
+# Kopieer de rest van de broncode en publiceer
+COPY . ./
+RUN dotnet publish -c Release -o /app
+
+# ---- Stage 2: draaien ----
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app ./
+
+# Render geeft de poort door via de PORT omgevingsvariabele.
+# ASPNETCORE_URLS wordt hier pas bij het starten ingevuld (shell-vorm van CMD).
+CMD ASPNETCORE_URLS=http://+:$PORT dotnet backend-cscharp.dll

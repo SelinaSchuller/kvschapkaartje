@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("backend-cscharp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d96994142d9fa92d7c0083bdea7d4cb0ed0d655e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f49eb98c767f3f5a1236a8dd2c906a3859611709")]
 [assembly: System.Reflection.AssemblyProductAttribute("backend-cscharp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("backend-cscharp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
