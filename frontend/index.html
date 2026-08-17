@@ -319,6 +319,21 @@
         document.getElementById('scanBtn').onclick = startScanning;
         document.getElementById('stopBtn').onclick = stopScanning;
 
+        const FORMAT_RE = /^\d{4}\.\d{2}\.\d\.\d{3}\.\d{2}$/;
+
+        function normalizeScannedCode(raw) {
+            const cleaned = raw.replace(/\D/g, "");
+            if (cleaned.length !== 12) return null;
+
+            return [
+                cleaned.slice(0, 4),
+                cleaned.slice(4, 6),
+                cleaned.slice(6, 7),
+                cleaned.slice(7, 10),
+                cleaned.slice(10, 12)
+            ].join(".");
+        }
+
         function startScanning() {
             if (scanning) return;
             html5QrCode = new Html5Qrcode("reader");
@@ -328,19 +343,18 @@
                     fps: 10,
                     qrbox: { width: 280, height: 140 },
                     formatsToSupport: [
-                        Html5QrcodeSupportedFormats.EAN_13,
-                        Html5QrcodeSupportedFormats.EAN_8,
-                        Html5QrcodeSupportedFormats.CODE_128,
-                        Html5QrcodeSupportedFormats.CODE_39,
-                        Html5QrcodeSupportedFormats.UPC_A,
-                        Html5QrcodeSupportedFormats.UPC_E
+                        Html5QrcodeSupportedFormats.CODE_128
                     ],
-                    experimentalFeatures: {
-                        useBarCodeDetectorIfSupported: true
-                    }
                 },
                 (decodedText) => {
-                    processCode(decodedText);
+                    const normalized = normalizeScannedCode(decodedText);
+
+                    if (!normalized || !FORMAT_RE.test(normalized)) {
+                        alert("Onjuist formaat gescand");
+                        return;
+                    }
+
+                    processCode(normalized);
                     stopScanning();
                 },
                 () => { } // scan-fouten per frame negeren
