@@ -169,11 +169,23 @@
         }
 
         #reader {
-            width: 100%;
+            width: min(300px, 72vw);
+            height: 200px;
+            margin: 0 auto 10px;
             border-radius: 8px;
             overflow: hidden;
             background: #000;
-            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #1A1A1A;
+        }
+
+        #reader video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
         }
 
         #scanBtn,
@@ -339,6 +351,10 @@
             document.getElementById('scanBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = '';
 
+            const readerBox = document.getElementById('reader');
+            readerBox.style.width = 'min(300px, 72vw)';
+            readerBox.style.height = '200px';
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: "environment" },
@@ -348,7 +364,12 @@
                 video.srcObject = stream;
                 await video.play();
 
-                setTimeout(async () => {
+                const attempts = 5;
+                let lastValid = null;
+
+                for (let i = 0; i < attempts; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 1400));
+
                     try {
                         canvas.width = video.videoWidth || 640;
                         canvas.height = video.videoHeight || 480;
@@ -362,27 +383,33 @@
                         });
 
                         const text = (result.data.text || "").trim();
-                        console.log("OCR:", JSON.stringify(text));
-
                         const normalized = normalizeScannedCode(text);
+
+                        console.log("OCR poging", i + 1, JSON.stringify(text), "=>", normalized);
+
                         if (normalized) {
-                            processCode(normalized);
-                        } else {
-                            alert("Geen geldige code herkend. Probeer opnieuw en houd het kaartje recht onder de camera.");
+                            lastValid = normalized;
+                            break;
                         }
                     } catch (err) {
-                        console.error(err);
-                        alert("OCR kon de code niet lezen. Probeer opnieuw.");
-                    } finally {
-                        if (video.srcObject) {
-                            video.srcObject.getTracks().forEach(track => track.stop());
-                            video.srcObject = null;
-                        }
-                        scanning = false;
-                        document.getElementById('scanBtn').style.display = '';
-                        document.getElementById('stopBtn').style.display = 'none';
+                        console.warn("OCR fout bij poging", i + 1, err);
                     }
-                }, 1200);
+                }
+
+                if (lastValid) {
+                    processCode(lastValid);
+                } else {
+                    alert("Geen geldige code herkend. Probeer opnieuw en houd het kaartje recht onder de camera.");
+                }
+
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                }
+
+                scanning = false;
+                document.getElementById('scanBtn').style.display = '';
+                document.getElementById('stopBtn').style.display = 'none';
             } catch (err) {
                 console.error(err);
                 scanning = false;
@@ -398,6 +425,10 @@
             const candidate = raw
                 .replace(/\r?\n/g, ' ')
                 .replace(/[^0-9.]/g, '');
+
+            if (!/^\d{4}\.\d{2}\.\d\.\d{3}\.\d{2}$/.test(candidate) && !/^\d{12}$/.test(candidate)) {
+                return null;
+            }
 
             const digits = candidate.replace(/[.]/g, '');
             if (digits.length !== 12) return null;
