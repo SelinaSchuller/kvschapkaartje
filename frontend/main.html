@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schapwijzer</title>
+    <style>
+        :root {
+            --yellow: #FFCC00;
+            --red: #E2001A;
+            --white: #FFFFFF;
+            --black: #1A1A1A;
+            --gray: #666666;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--yellow);
+            color: var(--black);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .wrap {
+            width: 100%;
+            max-width: 420px;
+            padding: 24px 18px 50px;
+        }
+
+        .header {
+            background: var(--red);
+            color: var(--white);
+            padding: 16px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header p {
+            margin: 4px 0 0;
+            font-size: 13px;
+            opacity: .9;
+        }
+
+        .card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        input#code {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid var(--black);
+            border-radius: 6px;
+            color: var(--black);
+        }
+
+        input#code:focus {
+            outline: none;
+            border-color: var(--red);
+        }
+
+        button {
+            background: var(--red);
+            color: var(--white);
+            border: none;
+            padding: 0 18px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:active {
+            opacity: .85;
+        }
+
+        .error {
+            margin-top: 12px;
+            color: var(--red);
+            font-size: 13px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .result {
+            margin-top: 18px;
+            display: none;
+        }
+
+        .result .line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 15px;
+        }
+
+        .result .line:last-child {
+            border-bottom: none;
+        }
+
+        .result .label {
+            color: var(--gray);
+            font-size: 13px;
+        }
+
+        .result .value {
+            font-weight: bold;
+            font-size: 18px;
+            color: var(--black);
+        }
+
+        .hint {
+            margin-top: 14px;
+            font-size: 12px;
+            color: var(--gray);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+
+        <div class="header">
+            <h1>Schapwijzer</h1>
+            <p>Vul de kaartjescode in om de locatie te vinden</p>
+        </div>
+
+        <div class="card">
+            <label for="code">Code</label>
+            <div class="row">
+                <input id="code" inputmode="numeric" placeholder="1111.02.3.004.01" maxlength="17">
+                <button id="zoekBtn">Zoek</button>
+            </div>
+            <div class="error" id="error"></div>
+
+            <div class="result" id="result">
+                <div class="line"><span class="label">Meter</span><span class="value" id="outMeter">–</span></div>
+                <div class="line"><span class="label">Plank</span><span class="value" id="outPlank">–</span>
+                </div>
+                <div class="line"><span class="label">Positie</span><span class="value" id="outPositie">–</span></div>
+                <div class="line"><span class="label">Naast elkaar</span><span class="value" id="outBreedte">–</span>
+                </div>
+            </div>
+
+            <p class="hint">Voorbeeld: 1111.02.3.004.01 → meter 2, plank 3, positie 4, breedte 1</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:5280";
+
+        document.getElementById('zoekBtn').onclick = zoek;
+        document.getElementById('code').addEventListener('input', formatCode);
+
+        function formatCode(e) {
+            const input = e.target;
+            let digits = input.value.replace(/\D/g, '').slice(0, 12);
+
+            const groups = [4, 2, 1, 3, 2];
+            let formatted = '';
+            let pos = 0;
+
+            for (let i = 0; i < groups.length; i++) {
+                const len = groups[i];
+                if (digits.length <= pos) break;
+
+                const chunk = digits.slice(pos, pos + len);
+                formatted += chunk;
+                pos += len;
+
+                // zet meteen een punt neer zodra dit segment vol is, ongeacht of er al meer getypt is
+                if (chunk.length === len && i < groups.length - 1) {
+                    formatted += '.';
+                }
+            }
+
+            input.value = formatted;
+        }
+
+        async function zoek() {
+            const code = document.getElementById('code').value.trim();
+            const errorEl = document.getElementById('error');
+            const resultEl = document.getElementById('result');
+            errorEl.style.display = 'none';
+            resultEl.style.display = 'none';
+
+            if (!code) {
+                errorEl.textContent = 'Voer een code in.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/calculate/${encodeURIComponent(code)}`);
+                if (!res.ok) {
+                    throw new Error('format');
+                }
+                const data = await res.json();
+                showResult(data);
+            } catch (err) {
+                errorEl.textContent = 'Formaat klopt niet. Verwacht bv: 1111.02.3.004.01';
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function showResult(data) {
+            document.getElementById('outMeter').textContent = data.meter;
+            document.getElementById('outPlank').textContent = data.plank;
+            document.getElementById('outPositie').textContent = data.positie;
+            document.getElementById('outBreedte').textContent = data.breedte;
+
+            document.getElementById('result').style.display = 'block';
+        }
+    </script>
+</body>
+
+</html>
