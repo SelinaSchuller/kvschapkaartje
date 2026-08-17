@@ -175,9 +175,8 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
-        const API_BASE = "http://localhost:5280";
-
         document.getElementById('zoekBtn').onclick = zoek;
         document.getElementById('code').addEventListener('input', formatCode);
 
@@ -227,7 +226,7 @@
                 const data = await res.json();
                 showResult(data);
             } catch (err) {
-                errorEl.textContent = 'Formaat klopt niet. Verwacht bv: 1111.02.3.004.01';
+                errorEl.textContent = 'DEBUG: ' + err.message;
                 errorEl.style.display = 'block';
             }
         }
