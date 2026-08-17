@@ -320,6 +320,15 @@
         document.getElementById('stopBtn').onclick = stopScanning;
 
         const video = document.createElement("video");
+        video.setAttribute("playsinline", "true");
+        video.muted = true;
+        video.style.width = "100%";
+        video.style.display = "block";
+        video.style.background = "#000";
+        const reader = document.getElementById('reader');
+        reader.innerHTML = "";
+        reader.appendChild(video);
+
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
@@ -331,7 +340,11 @@
             document.getElementById('stopBtn').style.display = '';
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" },
+                    audio: false
+                });
+
                 video.srcObject = stream;
                 await video.play();
 
@@ -343,40 +356,50 @@
 
                         const result = await Tesseract.recognize(canvas, "eng", {
                             logger: m => console.log(m),
-                            tessedit_char_whitelist: "0123456789."
+                            psm: 7,
+                            oem: 1,
+                            tessedit_char_whitelist: "0123456789. "
                         });
 
-                        const text = result.data.text.trim();
-                        console.log("OCR:", text);
+                        const text = (result.data.text || "").trim();
+                        console.log("OCR:", JSON.stringify(text));
 
-                        const cleaned = text.replace(/\s+/g, "");
-                        const normalized = normalizeScannedCode(cleaned);
-
+                        const normalized = normalizeScannedCode(text);
                         if (normalized) {
                             processCode(normalized);
                         } else {
-                            alert("Geen geldige code herkend. Probeer opnieuw.");
+                            alert("Geen geldige code herkend. Probeer opnieuw en houd het kaartje recht onder de camera.");
                         }
                     } catch (err) {
                         console.error(err);
                         alert("OCR kon de code niet lezen. Probeer opnieuw.");
                     } finally {
-                        stream.getTracks().forEach(track => track.stop());
+                        if (video.srcObject) {
+                            video.srcObject.getTracks().forEach(track => track.stop());
+                            video.srcObject = null;
+                        }
                         scanning = false;
                         document.getElementById('scanBtn').style.display = '';
                         document.getElementById('stopBtn').style.display = 'none';
                     }
-                }, 1500);
+                }, 1200);
             } catch (err) {
+                console.error(err);
                 scanning = false;
                 document.getElementById('scanBtn').style.display = '';
                 document.getElementById('stopBtn').style.display = 'none';
-                alert('Camera kon niet starten: ' + err);
+                alert('Camera kon niet starten. Geef toegang tot de camera en open de app via http://localhost:8000');
             }
         }
 
         function normalizeScannedCode(raw) {
-            const digits = raw.replace(/\D/g, "");
+            if (!raw) return null;
+
+            const candidate = raw
+                .replace(/\r?\n/g, ' ')
+                .replace(/[^0-9.]/g, '');
+
+            const digits = candidate.replace(/[.]/g, '');
             if (digits.length !== 12) return null;
 
             const formatted =
