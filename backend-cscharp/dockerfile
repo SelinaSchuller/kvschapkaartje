@@ -15,6 +15,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 COPY --from=build /app ./
 
+# Voorkomt een crash op platforms zoals Render, waar de inotify-limiet te laag is
+# voor .NET's standaard FileSystemWatcher op appsettings.json.
+ENV DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
+
 # Render geeft de poort door via de PORT omgevingsvariabele.
 # ASPNETCORE_URLS wordt hier pas bij het starten ingevuld (shell-vorm van CMD).
 CMD ASPNETCORE_URLS=http://+:$PORT dotnet backend-cscharp.dll
